@@ -100,6 +100,10 @@ class _TrimmerViewState extends State<TrimmerView> {
                       areaProperties: TrimAreaProperties.edgeBlur(
                         thumbnailQuality: 50,
                       ),
+                      // Scroll timing configuration (only applies to scrollable viewer)
+                      scrollStartDelay: 150, // Start scrolling faster (default: 300ms)
+                      scrollInterval: 200, // Scroll update interval (default: 300ms)
+                      scrollAnimationDuration: 80, // Faster animations (default: 100ms)
                       onChangeStart: (value) => _startValue = value,
                       onChangeEnd: (value) => _endValue = value,
                       onChangePlaybackState: (value) =>

@@ -90,6 +90,25 @@ class TrimViewer extends StatefulWidget {
   /// thumbnails are loaded.
   final VoidCallback? onThumbnailLoadingComplete;
 
+  /// Delay in milliseconds before auto-scroll starts when dragging near edges.
+  /// Only applies when using scrollable viewer.
+  ///
+  /// By default it is set to `300` milliseconds.
+  final int scrollStartDelay;
+
+  /// Interval in milliseconds between scroll updates during auto-scroll.
+  /// Lower values result in faster, smoother scrolling.
+  /// Only applies when using scrollable viewer.
+  ///
+  /// By default it is set to `300` milliseconds.
+  final int scrollInterval;
+
+  /// Duration in milliseconds for the scroll animation.
+  /// Only applies when using scrollable viewer.
+  ///
+  /// By default it is set to `100` milliseconds.
+  final int scrollAnimationDuration;
+
   /// Widget for displaying the video trimmer.
   ///
   /// This has frame wise preview of the video with a
@@ -184,6 +203,9 @@ class TrimViewer extends StatefulWidget {
     this.editorProperties = const TrimEditorProperties(),
     this.areaProperties = const TrimAreaProperties(),
     this.onThumbnailLoadingComplete,
+    this.scrollStartDelay = 300,
+    this.scrollInterval = 300,
+    this.scrollAnimationDuration = 100,
   });
 
   @override
@@ -234,6 +256,9 @@ class _TrimViewerState extends State<TrimViewer> with TickerProviderStateMixin {
       paddingFraction: widget.paddingFraction,
       editorProperties: widget.editorProperties,
       areaProperties: widget.areaProperties,
+      scrollStartDelay: widget.scrollStartDelay,
+      scrollInterval: widget.scrollInterval,
+      scrollAnimationDuration: widget.scrollAnimationDuration,
       onThumbnailLoadingComplete: () {
         if (widget.onThumbnailLoadingComplete != null) {
           widget.onThumbnailLoadingComplete!();

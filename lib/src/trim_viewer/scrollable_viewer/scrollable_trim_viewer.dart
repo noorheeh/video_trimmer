@@ -75,6 +75,22 @@ class ScrollableTrimViewer extends StatefulWidget {
 
   final VoidCallback onThumbnailLoadingComplete;
 
+  /// Delay in milliseconds before auto-scroll starts when dragging near edges.
+  ///
+  /// By default it is set to `300` milliseconds.
+  final int scrollStartDelay;
+
+  /// Interval in milliseconds between scroll updates during auto-scroll.
+  ///
+  /// Lower values result in faster, smoother scrolling.
+  /// By default it is set to `300` milliseconds.
+  final int scrollInterval;
+
+  /// Duration in milliseconds for the scroll animation.
+  ///
+  /// By default it is set to `100` milliseconds.
+  final int scrollAnimationDuration;
+
   /// Widget for displaying the video trimmer.
   ///
   /// This has frame wise preview of the video with a
@@ -134,6 +150,9 @@ class ScrollableTrimViewer extends StatefulWidget {
     this.paddingFraction = 0.2,
     this.editorProperties = const TrimEditorProperties(),
     this.areaProperties = const TrimAreaProperties(),
+    this.scrollStartDelay = 300,
+    this.scrollInterval = 300,
+    this.scrollAnimationDuration = 100,
   });
 
   @override
@@ -205,7 +224,7 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
 
   void startScrolling(bool isTowardsEnd) {
     _scrollingTimer =
-        Timer.periodic(const Duration(milliseconds: 300), (timer) {
+        Timer.periodic(Duration(milliseconds: widget.scrollInterval), (timer) {
       setState(() {
         final midPoint = (_endPos.dx - _startPos.dx) / 2;
         var speedMultiplier = 1;
@@ -247,15 +266,19 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
         // log('scroll pixels: ${_scrollController.position.pixels}');
       });
 
-      log('SCROLL: $currentScrollValue, (${((_scrollController.position.pixels / _scrollController.position.maxScrollExtent) * 100).toStringAsFixed(2)}%)');
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final scrollPercent = maxExtent > 0
+          ? (_scrollController.position.pixels / maxExtent) * 100
+          : 0.0;
+      log('SCROLL: $currentScrollValue, (${scrollPercent.toStringAsFixed(2)}%)');
       _scrollController.animateTo(
         currentScrollValue,
         curve: Curves.easeOut,
-        duration: const Duration(milliseconds: 100),
+        duration: Duration(milliseconds: widget.scrollAnimationDuration),
       );
-      final durationChange = (_scrollController.position.pixels /
-              _scrollController.position.maxScrollExtent) *
-          _remainingDuration;
+      final durationChange = maxExtent > 0
+          ? (_scrollController.position.pixels / maxExtent) * _remainingDuration
+          : 0.0;
       _videoStartPos = (_trimmerAreaDuration * _startFraction) + durationChange;
       _videoEndPos = (_trimmerAreaDuration * _endFraction) + durationChange;
     });
@@ -263,17 +286,16 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
   }
 
   void startTimer(bool isTowardsEnd) {
-    var start = 300;
+    var start = widget.scrollStartDelay;
     _scrollStartTimer = Timer.periodic(
       const Duration(milliseconds: 100),
       (Timer timer) {
-        if (start == 0) {
+        start -= 100;
+        if (start <= 0) {
           timer.cancel();
           log('ANIMATE');
           if (_scrollingTimer?.isActive ?? false) return;
           startScrolling(isTowardsEnd);
-        } else {
-          start -= 100;
         }
       },
     );
@@ -501,13 +523,28 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
     }
     // log('Video Duration :: Start: ${_videoStartPos / 1000}ms, End: ${_videoEndPos / 1000}ms');
     // log('UPDATE => START: ${_startPos.dx}, END: ${_endPos.dx}');
-    _scrollStartTimer?.cancel();
-    if (_endPos.dx >= _autoEndScrollPos &&
-        currentScrollValue <= totalVideoLengthInPixels) {
-      startTimer(true);
-    } else if (_startPos.dx <= _autoStartScrollPos &&
-        currentScrollValue != 0.0) {
-      startTimer(false);
+
+    // Check if we need to start auto-scrolling
+    final shouldScrollToEnd = _endPos.dx >= _autoEndScrollPos &&
+        currentScrollValue <= totalVideoLengthInPixels;
+    final shouldScrollToStart = _startPos.dx <= _autoStartScrollPos &&
+        currentScrollValue != 0.0;
+
+    // Only start new timer if not already scrolling
+    if (shouldScrollToEnd) {
+      if (!(_scrollingTimer?.isActive ?? false)) {
+        _scrollStartTimer?.cancel();
+        startTimer(true);
+      }
+    } else if (shouldScrollToStart) {
+      if (!(_scrollingTimer?.isActive ?? false)) {
+        _scrollStartTimer?.cancel();
+        startTimer(false);
+      }
+    } else {
+      // Not in auto-scroll zone, cancel any active timers
+      _scrollStartTimer?.cancel();
+      _scrollingTimer?.cancel();
     }
 
     setState(() {});
@@ -516,10 +553,11 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
   void _onStartDragged() {
     if (_scrollingTimer?.isActive ?? false) return;
     _startFraction = (_startPos.dx / _thumbnailViewerW);
-    _videoStartPos = (_trimmerAreaDuration * _startFraction) +
-        (_scrollController.position.pixels /
-                _scrollController.position.maxScrollExtent) *
-            _remainingDuration;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final scrollOffset = maxExtent > 0
+        ? (_scrollController.position.pixels / maxExtent) * _remainingDuration
+        : 0.0;
+    _videoStartPos = (_trimmerAreaDuration * _startFraction) + scrollOffset;
     widget.onChangeStart!(_videoStartPos);
     _linearTween.begin = _startPos.dx;
     _animationController!.duration =
@@ -530,10 +568,11 @@ class _ScrollableTrimViewerState extends State<ScrollableTrimViewer>
   void _onEndDragged() {
     if (_scrollingTimer?.isActive ?? false) return;
     _endFraction = _endPos.dx / _thumbnailViewerW;
-    _videoEndPos = (_trimmerAreaDuration * _endFraction) +
-        (_scrollController.position.pixels /
-                _scrollController.position.maxScrollExtent) *
-            _remainingDuration;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final scrollOffset = maxExtent > 0
+        ? (_scrollController.position.pixels / maxExtent) * _remainingDuration
+        : 0.0;
+    _videoEndPos = (_trimmerAreaDuration * _endFraction) + scrollOffset;
     widget.onChangeEnd!(_videoEndPos);
     _linearTween.end = _endPos.dx;
     _animationController!.duration =
